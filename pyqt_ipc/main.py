@@ -1,11 +1,12 @@
 import time
+import inspect
 from multiprocessing import Process, Queue
 
 import psutil
 from PyQt5.QtCore import pyqtSignal, QThread
 
 from .task import TaskManager
-from .exception import ProcessException
+from .exception import ProcessException, OperationException
 
 
 __all__ = [
@@ -53,7 +54,7 @@ class IPCMain:
     def __init__(self, window):
 
         self._window = window
-        self._task_names = []
+        self._task_datasets = {}
         self._proc = None
         self._watch_thread = None
         self._listen_always_tasks = {}
@@ -66,11 +67,12 @@ class IPCMain:
         :param task: 任务实体
         :return: None
         """
-        if task_name in self._task_names:
+        if task_name in self._task_datasets:
             task_q.put(("modify", task_name, task))
         else:
             task_q.put(("add", task_name, task))
-            self._task_names.append(task_name)
+
+        self._task_datasets.update({task_name: task})
 
     def start(self, task_name, *args, **kwargs):
         """
@@ -80,8 +82,11 @@ class IPCMain:
         :param kwargs: 执行任务传递的关键字参数
         :return: None
         """
-        if task_name not in self._task_names:
+        if task_name not in self._task_datasets:
             raise ProcessException("请先完成任务注册后再启动")
+
+        if not self._validate_task_params(task_name, *args, **kwargs):
+            raise OperationException("传递给任务的参数不合法")
 
         task_q.put(("start", task_name, args, kwargs))
 
@@ -91,7 +96,7 @@ class IPCMain:
         :param task_name: 任务名称
         :return: None
         """
-        if task_name not in self._task_names:
+        if task_name not in self._task_datasets:
             raise ProcessException("任务完成注册并运行后才有停止的可能")
 
         task_q.put(("stop", task_name))
@@ -141,6 +146,27 @@ class IPCMain:
         if task_name in self._listen_once_tasks:
             self._listen_once_tasks[task_name](*result[1:])
             del self._listen_once_tasks[task_name]
+
+    def _validate_task_params(self, task_name, *args, **kwargs):
+        """
+        校验传递给任务参数是否合法
+        :param task_name: 任务名称
+        :param args: 传递给任务的位置参数
+        :param kwargs: 传递给任务的关键字参数
+        :return: bool -> 是否校验成功
+        """
+        task = self._task_datasets[task_name]
+        sig = inspect.signature(task)
+        params = sig.parameters
+        if len(args) > len(params):
+            return False
+
+        kwargs_keys = [x for x in params][len(args):]
+        for kwargs_key in kwargs_keys:
+            if params[kwargs_key].default is inspect._empty and kwargs_key not in kwargs:
+                return False
+
+        return True
 
     @property
     def listen_always_tasks(self):
