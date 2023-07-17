@@ -5,7 +5,7 @@ from multiprocessing import Process, Queue
 import psutil
 from PyQt5.QtCore import pyqtSignal, QThread
 
-from .task import TaskManager
+from .task import TaskManager, TaskIterator
 from .exception import ProcessException, OperationException
 
 
@@ -156,6 +156,8 @@ class IPCMain:
         :return: bool -> 是否校验成功
         """
         task = self._task_datasets[task_name]
+        if isinstance(task, TaskIterator):
+            task = task.taskProto
         sig = inspect.signature(task)
         params = sig.parameters
         if len(args) > len(params):

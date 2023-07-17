@@ -35,6 +35,16 @@ class TaskIterator:
         """
         self.__cycle = 0
 
+    @property
+    def taskProto(self):
+
+        return self.__tasks
+
+    @taskProto.setter
+    def taskProto(self, newValue):
+
+        raise OperationException("不支持通过该方式修改任务本体")
+
 class Task:
 
     def __init__(self, task_name, task, result_q):
