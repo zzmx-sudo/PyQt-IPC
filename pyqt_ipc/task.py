@@ -128,10 +128,6 @@ class TaskManager:
         manager = cls(result_q)
 
         while True:
-            if task_q.empty():
-                time.sleep(0.2)
-                continue
-
             task_params = task_q.get()
             task_type = task_params[0]
             if task_type == "add":
