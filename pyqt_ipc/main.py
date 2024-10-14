@@ -22,8 +22,9 @@ class WatchThread(QThread):
     """
     signal = pyqtSignal(tuple)
 
-    def __init__(self, run_flag=True):
+    def __init__(self, interval, run_flag=True):
         super(WatchThread, self).__init__()
+        self._interval = interval
         self._run_flag = run_flag
 
     def run(self):
@@ -33,7 +34,7 @@ class WatchThread(QThread):
                 break
 
             if result_q.empty():
-                time.sleep(0.2)
+                time.sleep(self._interval)
                 continue
 
             result = result_q.get()
@@ -51,9 +52,10 @@ class WatchThread(QThread):
 
 class IPCMain:
 
-    def __init__(self, window):
+    def __init__(self, window, interval):
 
         self._window = window
+        self._interval = interval / 1000
         self._task_datasets = {}
         self._proc = None
         self._watch_thread = None
@@ -98,6 +100,12 @@ class IPCMain:
         """
         if task_name not in self._task_datasets:
             raise ProcessException("任务完成注册并运行后才有停止的可能")
+
+        if task_name in self._listen_always_tasks:
+            del self._listen_always_tasks[task_name]
+
+        if task_name in self._listen_once_tasks:
+            del self._listen_once_tasks[task_name]
 
         task_q.put(("stop", task_name))
 

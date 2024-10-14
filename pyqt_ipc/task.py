@@ -1,4 +1,3 @@
-import time
 from threading import Thread
 
 from .exception import RegistryException, OperationException
@@ -34,6 +33,11 @@ class TaskIterator:
         :return: None
         """
         self.__cycle = 0
+
+    @property
+    def cycles(self):
+
+        return self._cycles
 
     @property
     def taskProto(self):
@@ -101,7 +105,7 @@ class Task:
     def task(self, newValue):
 
         if self.isRuning:
-            raise OperationException("任务正在运行中，不允许重新注册")
+            raise OperationException(f"任务名({self._task_name})对应的任务还在运行中，不允许修改注册")
 
         if isinstance(newValue, TaskIterator):
             self._task = newValue
