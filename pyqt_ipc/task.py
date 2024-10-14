@@ -1,6 +1,7 @@
 from threading import Thread
 
-from .exception import RegistryException, OperationException
+from .logger import logger
+from .exception import RegistryException
 
 
 __all__ = [
@@ -47,7 +48,7 @@ class TaskIterator:
     @taskProto.setter
     def taskProto(self, newValue):
 
-        raise OperationException("不支持通过该方式修改任务本体")
+        logger.error("操作错误, 不支持通过该方式修改任务本体")
 
 class Task:
 
@@ -57,6 +58,7 @@ class Task:
         elif hasattr(task, "__call__"):
             self._task = TaskIterator(task, cycles=1)
         else:
+            logger.error("注册失败, 任务必须为可调用的,它可以是一个函数或TaskIterator实例对象, 本次注册被忽略!")
             raise RegistryException("任务必须为可调用的,它可以是一个函数或TaskIterator实例对象")
 
         self._run = False
@@ -105,13 +107,15 @@ class Task:
     def task(self, newValue):
 
         if self.isRuning:
-            raise OperationException(f"任务名({self._task_name})对应的任务还在运行中，不允许修改注册")
+            logger.error(f"操作错误, 任务名({self._task_name})对应的任务还在运行中，不允许修改注册, 本次修改被忽略!")
+            return
 
         if isinstance(newValue, TaskIterator):
             self._task = newValue
         elif hasattr(newValue, "__call__"):
             self._task = TaskIterator(newValue, cycles=1)
         else:
+            logger.error("注册错误, 任务必须为可调用的,它可以是一个函数或TaskIterator实例对象, 本次修改被忽略!")
             raise RegistryException("任务必须为可调用的,它可以是一个函数或TaskIterator实例对象")
 
 class TaskManager:
@@ -152,7 +156,12 @@ class TaskManager:
         :param task: 任务实体
         :return: None
         """
-        self._all_tasks[task_name] = Task(task_name, task, self._result_q)
+        try:
+            self._all_tasks[task_name] = Task(task_name, task, self._result_q)
+        except RegistryException:
+            return
+        else:
+            logger.debug(f"任务名({task_name})已成功注册")
 
     def _modify_task(self, task_name, task):
         """
@@ -161,7 +170,12 @@ class TaskManager:
         :param task: 任务实体
         :return: None
         """
-        self._all_tasks[task_name].task = task
+        try:
+            self._all_tasks[task_name].task = task
+        except RegistryException:
+            return
+        else:
+            logger.debug(f"任务名({task_name})已成功更新")
 
     def _start_task(self, task_name, args, kwargs):
         """
@@ -172,12 +186,14 @@ class TaskManager:
         :return: None
         """
         if self._all_tasks[task_name].isRuning:
+            logger.warning(f"任务名({task_name})正在运行中, 本次启动忽略!")
             return
 
         self._all_tasks[task_name].reload()
         t = Thread(target=self._all_tasks[task_name].run, args=args, kwargs=kwargs)
         t.setDaemon(True)
         t.start()
+        logger.debug(f"任务名({task_name})已成功启动")
 
     def _stop_task(self, task_name):
         """
@@ -186,6 +202,7 @@ class TaskManager:
         :return: None
         """
         self._all_tasks[task_name].quit()
+        logger.debug(f"任务名({task_name})已成功取消")
 
     def _stop_all(self):
         """

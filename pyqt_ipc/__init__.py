@@ -2,7 +2,7 @@ from PyQt5.QtWidgets import QMainWindow
 
 from .main import IPCMain
 from .renderer import IPCRenderer
-from .exception import OperationException
+from .logger import logger
 
 
 __all__ = [
@@ -20,7 +20,8 @@ def CreateIPC(
     :return: ipcMain -> 任务IPC对象; ipcRenderer -> 渲染IPC对象
     """
     if not isinstance(interval, int):
-        raise OperationException("Please pass the int type as the interval parameter!")
+        logger.error("interval参数必须为整数, 将使用默认值作为interval参数!")
+        interval = 200
     ipcMain = IPCMain(window, interval)
     ipcRenderer = IPCRenderer(ipcMain)
     ipcMain.bind_quit()

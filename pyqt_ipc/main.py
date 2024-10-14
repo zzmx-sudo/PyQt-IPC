@@ -6,7 +6,7 @@ import psutil
 from PyQt5.QtCore import pyqtSignal, QThread
 
 from .task import TaskManager, TaskIterator
-from .exception import ProcessException, OperationException
+from .logger import logger
 
 
 __all__ = [
@@ -70,11 +70,23 @@ class IPCMain:
         :return: None
         """
         if task_name in self._task_datasets:
+            ori_task_info = self._task_datasets[task_name]
+            ori_task = ori_task_info["task"]
+            already_cycle = ori_task_info["already"]
+            if isinstance(ori_task, TaskIterator):
+                if ori_task.cycles == 0 or already_cycle < ori_task.cycles:
+                    logger.warning(f"任务名({task_name})对应的任务还在运行中, 任务完成后才能重新注册任务, 本次注册被忽略!")
+                    return
+            else:
+                if already_cycle == 0:
+                    logger.warning(f"任务名({task_name})对应的任务还在运行中, 任务完成后才能重新注册任务, 本次注册被忽略!")
+                    return
             task_q.put(("modify", task_name, task))
         else:
             task_q.put(("add", task_name, task))
 
-        self._task_datasets.update({task_name: task})
+        self._task_datasets.update({task_name: {"task": task, "already": 0}})
+        logger.debug(f"任务名({task_name})下发注册/更新成功")
 
     def start(self, task_name, *args, **kwargs):
         """
@@ -85,12 +97,15 @@ class IPCMain:
         :return: None
         """
         if task_name not in self._task_datasets:
-            raise ProcessException("请先完成任务注册后再启动")
+            logger.error("流程错误, 请先完成任务注册后再启动, 本次启动被忽略!")
+            return
 
         if not self._validate_task_params(task_name, *args, **kwargs):
-            raise OperationException("传递给任务的参数不合法")
+            logger.error("操作错误, 传递给任务的参数不合法, 请传递有效参数, 本次启动被忽略!")
+            return
 
         task_q.put(("start", task_name, args, kwargs))
+        logger.debug(f"任务名({task_name})下发启动成功")
 
     def cancel(self, task_name):
         """
@@ -99,15 +114,18 @@ class IPCMain:
         :return: None
         """
         if task_name not in self._task_datasets:
-            raise ProcessException("任务完成注册并运行后才有停止的可能")
+            logger.error("流程错误, 任务完成注册并运行后才有停止的可能, 本次停止任务操作被忽略!")
+            return
 
         if task_name in self._listen_always_tasks:
             del self._listen_always_tasks[task_name]
 
         if task_name in self._listen_once_tasks:
             del self._listen_once_tasks[task_name]
+        logger.debug(f"任务名({task_name})已成功取消所有渲染监听")
 
         task_q.put(("stop", task_name))
+        logger.debug(f"任务名({task_name})下发取消成功")
 
     def bind_quit(self):
         """
@@ -155,6 +173,9 @@ class IPCMain:
             self._listen_once_tasks[task_name](*result[1:])
             del self._listen_once_tasks[task_name]
 
+        if task_name in self._task_datasets:
+            self._callback_logging(task_name)
+
     def _validate_task_params(self, task_name, *args, **kwargs):
         """
         校验传递给任务参数是否合法
@@ -163,7 +184,7 @@ class IPCMain:
         :param kwargs: 传递给任务的关键字参数
         :return: bool -> 是否校验成功
         """
-        task = self._task_datasets[task_name]
+        task = self._task_datasets[task_name]["task"]
         if isinstance(task, TaskIterator):
             task = task.taskProto
         sig = inspect.signature(task)
@@ -177,6 +198,25 @@ class IPCMain:
                 return False
 
         return True
+
+    def _callback_logging(self, task_name):
+        """
+        任务回调后写日志操作
+        :param task_name: 任务名称
+        :return: None
+        """
+        task_info = self._task_datasets[task_name]
+        task_obj = task_info["task"]
+        already_cycle = task_info["already"]
+        already_cycle += 1
+        task_info.update({"already": already_cycle})
+        if isinstance(task_obj, TaskIterator):
+            if task_obj.cycles == 0 or already_cycle < task_obj.cycles:
+                logger.debug(f"任务名({task_name})第 {already_cycle} 次任务结束")
+            else:
+                logger.info(f"任务名({task_name})对应任务已全部结束")
+        else:
+            logger.info(f"任务名({task_name})已经结束")
 
     @property
     def listen_always_tasks(self):

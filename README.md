@@ -58,7 +58,7 @@ class Example(QMainWindow):
         self.show()
     
     def _read_file_once(self):
-        # 注册任务
+        # 注册任务, 若用同一任务名, 上一任务完成后才可进行下一次注册
         self.ipcMain.registry("read_file_once", self._read_file)
         # 定义监听任务结果回调,允许单任务多个监听,多次调用即可
         self.ipcReanderer.once("read_file_once", self.textBox.setText)
