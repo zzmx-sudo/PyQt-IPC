@@ -7,7 +7,8 @@ from pyqt_ipc.task import TaskIterator
 
 class Example(QMainWindow):
 
-    def __init__(self):
+    def __init__(self, forever = False):
+        self._forever = forever
         super(Example, self).__init__()
 
         self.initUi()
@@ -20,25 +21,34 @@ class Example(QMainWindow):
         self.btn = QPushButton("点我展示文本内容", self)
         self.btn.resize(self.btn.sizeHint())
         self.btn.move(10, 10)
-        self.btn.clicked.connect(lambda :self.ipcMain.start("read_file", "./pyqt_ipc/demo_aaa.txt"))
+        if self._forever:
+            self.btn.clicked.connect(lambda :self._read_file_forever())
+        else:
+            self.btn.clicked.connect(lambda :self._read_file_once())
 
         self.btn2 = QPushButton("取消文本展示", self)
         self.btn2.resize(self.btn.sizeHint())
         self.btn2.move(120, 10)
-        self.btn2.clicked.connect(lambda: self.ipcMain.cancel("read_file"))
+        if self._forever:
+            self.btn2.clicked.connect(lambda: self.ipcMain.cancel("read_file_forever"))
+        else:
+            self.btn2.clicked.connect(lambda: self.ipcMain.cancel("read_file_once"))
 
         self.textBox = QTextEdit(self)
         self.textBox.resize(380, 350)
         self.textBox.move(10, 40)
 
-        self._setting_async_tasks()
-
         self.show()
 
-    def _setting_async_tasks(self):
-        self.ipcMain.registry("read_file", TaskIterator(self._read_file))
-        self.ipcReanderer.on("read_file", self.textBox.append)
-        # self.ipcReanderer.once("read_file", self.textBox.setText)
+    def _read_file_forever(self):
+        self.ipcMain.registry("read_file_forever", TaskIterator(self._read_file))
+        self.ipcReanderer.on("read_file_forever", self.textBox.append)
+        self.ipcMain.start("read_file_forever", "./demo.txt")
+
+    def _read_file_once(self):
+        self.ipcMain.registry("read_file_once", self._read_file)
+        self.ipcReanderer.once("read_file_once", self.textBox.setText)
+        self.ipcMain.start("read_file_once", "./demo.txt")
 
     @staticmethod
     def _read_file(file_path):
@@ -53,5 +63,5 @@ class Example(QMainWindow):
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
-    window = Example()
+    window = Example(False)
     sys.exit(app.exec_())

@@ -1,5 +1,7 @@
 from PyQt5.QtWidgets import QApplication
 
+from .logger import logger
+
 
 __all__ = [
     "IPCRenderer"
@@ -49,6 +51,7 @@ class IPCRenderer:
             new_always_tasks = self._ipcMain.listen_always_tasks
             new_always_tasks[task_name] = CallController(callback)
             self._ipcMain.listen_always_tasks = new_always_tasks
+        logger.debug(f"任务名({task_name})成功添加渲染监听")
 
     def once(self, task_name, callback):
         """
@@ -63,3 +66,21 @@ class IPCRenderer:
             new_once_tasks = self._ipcMain.listen_once_tasks
             new_once_tasks[task_name] = CallController(callback)
             self._ipcMain.listen_once_tasks = new_once_tasks
+        logger.debug(f"任务名({task_name})成功添加单次渲染监听")
+
+    def cancel(self, task_name):
+        """
+        取消任务监听
+        :param task_name: 任务名称
+        :return: None
+        """
+        if task_name in self._ipcMain.listen_always_tasks:
+            new_always_tasks = self._ipcMain.listen_always_tasks
+            del new_always_tasks[task_name]
+            self._ipcMain.listen_always_tasks = new_always_tasks
+
+        if task_name in self._ipcMain.listen_once_tasks:
+            new_once_tasks = self._ipcMain.listen_once_tasks
+            del new_once_tasks[task_name]
+            self._ipcMain.listen_once_tasks = new_once_tasks
+        logger.debug(f"任务名({task_name})成功取消所有监听")
