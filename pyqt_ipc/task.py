@@ -48,7 +48,7 @@ class TaskIterator:
     @taskProto.setter
     def taskProto(self, newValue):
 
-        logger.error("操作错误, 不支持通过该方式修改任务本体")
+        logger.error("操作错误, 不支持通过该方式修改任务本体, 本次修改被忽略!")
 
 class Task:
 
@@ -107,7 +107,7 @@ class Task:
     def task(self, newValue):
 
         if self.isRuning:
-            logger.error(f"操作错误, 任务名({self._task_name})对应的任务还在运行中，不允许修改注册, 本次修改被忽略!")
+            logger.error(f"[{self._task_name}]: 操作错误, 对应的任务还在运行中，不允许修改注册, 本次修改被忽略!")
             return
 
         if isinstance(newValue, TaskIterator):
@@ -161,7 +161,7 @@ class TaskManager:
         except RegistryException:
             return
         else:
-            logger.debug(f"任务名({task_name})已成功注册")
+            logger.debug(f"[{task_name}]: 任务已成功注册")
 
     def _modify_task(self, task_name, task):
         """
@@ -175,7 +175,7 @@ class TaskManager:
         except RegistryException:
             return
         else:
-            logger.debug(f"任务名({task_name})已成功更新")
+            logger.debug(f"[{task_name}]: 任务已成功更新")
 
     def _start_task(self, task_name, args, kwargs):
         """
@@ -186,14 +186,14 @@ class TaskManager:
         :return: None
         """
         if self._all_tasks[task_name].isRuning:
-            logger.warning(f"任务名({task_name})正在运行中, 本次启动忽略!")
+            logger.warning(f"[{task_name}]: 任务正在运行中, 本次启动忽略!")
             return
 
         self._all_tasks[task_name].reload()
         t = Thread(target=self._all_tasks[task_name].run, args=args, kwargs=kwargs)
         t.setDaemon(True)
         t.start()
-        logger.debug(f"任务名({task_name})已成功启动")
+        logger.debug(f"[{task_name}]: 任务已成功启动")
 
     def _stop_task(self, task_name):
         """
@@ -202,7 +202,7 @@ class TaskManager:
         :return: None
         """
         self._all_tasks[task_name].quit()
-        logger.debug(f"任务名({task_name})已成功取消")
+        logger.debug(f"[{task_name}]: 任务已成功取消")
 
     def _stop_all(self):
         """
