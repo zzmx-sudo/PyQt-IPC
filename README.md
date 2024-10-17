@@ -1,5 +1,5 @@
 ## 版本
-v0.1.1
+v0.2.0
 
 ## 背景
 PyQt在进行任何耗时操作时将堵塞Qt的渲染导致Qt界面卡顿，Qt程序免不了耗时操作，故设计此工具用简单的操作注册运行耗时任务，并完成任务和渲染的通信/交互。
@@ -43,27 +43,48 @@ class Example(QMainWindow):
         self.btn = QPushButton("点我展示文本内容", self)
         self.btn.resize(self.btn.sizeHint())
         self.btn.move(10, 10)
-        # 控件绑定 注册/监听/启动任务事件
-        self.btn.clicked.connect(lambda :self._read_file_once())
+        # 控件绑定 启动任务事件
+        self.btn.clicked.connect(lambda :self._start_read_file_once())
         
         self.btn2 = QPushButton("取消文本展示", self)
         self.btn2.resize(self.btn.sizeHint())
         self.btn2.move(120, 10)
         # 控件绑定 取消任务事件
-        self.btn2.clicked.connect(lambda: self.ipcMain.cancel("read_file_once"))
+        self.btn2.clicked.connect(lambda: self._cancel_read_file_once())
         self.textBox = QTextEdit(self)
         self.textBox.resize(380, 350)
         self.textBox.move(10, 40)
-
+        
+        # 控件初始化完成后, 窗口show之前开始初始化异步任务并添加监听
+        self._init_async_tasks_and_listen()
+        
         self.show()
     
-    def _read_file_once(self):
-        # 注册任务, 若用同一任务名, 上一任务完成后才可进行下一次注册
+    def _init_async_tasks_and_listen(self):
+        """
+        初始化异步任务并添加监听
+        :return: None
+        """
+        # 注册任务
         self.ipcMain.registry("read_file_once", self._read_file)
-        # 定义监听任务结果回调,允许单任务多个监听,多次调用即可
-        self.ipcReanderer.once("read_file_once", self.textBox.setText)
-        # 单次监听任务结果回调,同样允许单任务多个监听
-        self.ipcMain.start("read_file_once", "./pyqt_ipc/demo.txt")
+        # 添加任务监听, 支持单任务监听多次(多个回调), 多次调用即可
+        self.ipcReanderer.on("read_file_once", self.textBox.setText)
+    
+    def _start_read_file_once(self):
+        """开启异步任务, 并携带任务参数"""
+        self.ipcMain.start("read_file_once", "./demo.txt")
+    
+    def _cancel_read_file_once(self):
+        """取消任务, 注意: 监听不会去除"""
+        self.ipcMain.cancel("read_file_once")
+    
+    def _remove_listen(self):
+        """移除任务的单个监听"""
+        self.ipcReanderer.remove("read_file_once", self.textBox.setText)
+    
+    def _cancel_listen(self):
+        """清空任务的所有监听"""
+        self.ipcReanderer.cancel("read_file_once")
 
     @staticmethod
     def _read_file(file_path):
@@ -89,9 +110,12 @@ from pyqt_ipc.task import TaskIterator
 # 将你的任务用TaskIterator包一层即可,若是有限次数任务,请传入cycles数
 # 需要注意任务返回结果频率,若是瞬时(就像示例中那样)且频繁的任务,请适当添加阻塞,否则Qt将因吃不消导致崩溃
 self.ipcMain.registry("read_file_forever", TaskIterator(self._read_file))
-# 同时, 任务监听改为on方法监听(once监听仅会回调一次, 后续任务的结果将会丢弃)
-self.ipcReanderer.on("read_file_forever", self.textBox.append)
 
-# 当你想关闭无限任务时，调用一次cancel即可, 此时该任务的所有监听都会移除
+# 当你想关闭无限任务时，调用一次cancel即可
 self.ipcMain.cancel("read_file_forever")
 ```
+
+## 使用注意:
+- 取消任务不会取消对应监听, 若不再监听请通过渲染ipc的remove/cancel方法移除监听
+- 取消任务时若为循环任务, 后续的执行会被取消, 但当前被拉起的执行不会取消 且若存在监听会执行, 若无需监听请通过渲染ipc的remove/cancel方法移除监听
+- 日志等级默认为`DEBUG`, 若要调节或关闭日志请至`logger.py`中配置

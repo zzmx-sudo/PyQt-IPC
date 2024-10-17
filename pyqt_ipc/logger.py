@@ -28,4 +28,4 @@ class Logger:
         return self._logger
 
 
-logger = Logger(logging.INFO).proto
+logger = Logger(logging.DEBUG).proto

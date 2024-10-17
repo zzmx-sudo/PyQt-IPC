@@ -59,8 +59,7 @@ class IPCMain:
         self._task_datasets = {}
         self._proc = None
         self._watch_thread = None
-        self._listen_always_tasks = {}
-        self._listen_once_tasks = {}
+        self._listen_tasks = {}
 
     def registry(self, task_name, task):
         """
@@ -75,18 +74,18 @@ class IPCMain:
             already_cycle = ori_task_info["already"]
             if isinstance(ori_task, TaskIterator):
                 if ori_task.cycles == 0 or already_cycle < ori_task.cycles:
-                    logger.warning(f"任务名({task_name})对应的任务还在运行中, 任务完成后才能重新注册任务, 本次注册被忽略!")
+                    logger.warning(f"[{task_name}]: 对应的任务还在运行中, 任务完成后才能重新注册任务, 本次注册被忽略!")
                     return
             else:
                 if already_cycle == 0:
-                    logger.warning(f"任务名({task_name})对应的任务还在运行中, 任务完成后才能重新注册任务, 本次注册被忽略!")
+                    logger.warning(f"[{task_name}]: 对应的任务还在运行中, 任务完成后才能重新注册任务, 本次注册被忽略!")
                     return
             task_q.put(("modify", task_name, task))
         else:
             task_q.put(("add", task_name, task))
 
         self._task_datasets.update({task_name: {"task": task, "already": 0}})
-        logger.debug(f"任务名({task_name})下发注册/更新成功")
+        logger.debug(f"[{task_name}]: 下发注册/更新任务成功")
 
     def start(self, task_name, *args, **kwargs):
         """
@@ -105,7 +104,7 @@ class IPCMain:
             return
 
         task_q.put(("start", task_name, args, kwargs))
-        logger.debug(f"任务名({task_name})下发启动成功")
+        logger.debug(f"[{task_name}]: 下发启动任务成功")
 
     def cancel(self, task_name):
         """
@@ -117,15 +116,8 @@ class IPCMain:
             logger.error("流程错误, 任务完成注册并运行后才有停止的可能, 本次停止任务操作被忽略!")
             return
 
-        if task_name in self._listen_always_tasks:
-            del self._listen_always_tasks[task_name]
-
-        if task_name in self._listen_once_tasks:
-            del self._listen_once_tasks[task_name]
-        logger.debug(f"任务名({task_name})已成功取消所有渲染监听")
-
         task_q.put(("stop", task_name))
-        logger.debug(f"任务名({task_name})下发取消成功")
+        logger.debug(f"[{task_name}]: 下发取消任务成功")
 
     def bind_quit(self):
         """
@@ -166,15 +158,11 @@ class IPCMain:
         :return: None
         """
         task_name = result[0]
-        if task_name in self._listen_always_tasks:
-            self._listen_always_tasks[task_name](*result[1:])
-
-        if task_name in self._listen_once_tasks:
-            self._listen_once_tasks[task_name](*result[1:])
-            del self._listen_once_tasks[task_name]
+        if task_name in self._listen_tasks:
+            self._listen_tasks[task_name](*result[1:])
 
         if task_name in self._task_datasets:
-            self._callback_logging(task_name)
+            self._callback_subsequent(task_name)
 
     def _validate_task_params(self, task_name, *args, **kwargs):
         """
@@ -199,9 +187,9 @@ class IPCMain:
 
         return True
 
-    def _callback_logging(self, task_name):
+    def _callback_subsequent(self, task_name):
         """
-        任务回调后写日志操作
+        任务回调渲染的后续操作, 包括记录日志
         :param task_name: 任务名称
         :return: None
         """
@@ -212,31 +200,21 @@ class IPCMain:
         task_info.update({"already": already_cycle})
         if isinstance(task_obj, TaskIterator):
             if task_obj.cycles == 0 or already_cycle < task_obj.cycles:
-                logger.debug(f"任务名({task_name})第 {already_cycle} 次任务结束")
+                logger.debug(f"[{task_name}]: 第 {already_cycle} 次任务结束")
             else:
-                logger.info(f"任务名({task_name})对应任务已全部结束")
+                logger.info(f"[{task_name}]: 对应任务已全部结束")
         else:
-            logger.info(f"任务名({task_name})已经结束")
+            logger.info(f"[{task_name}]: 任务已经结束")
 
     @property
-    def listen_always_tasks(self):
+    def listen_tasks(self):
 
-        return self._listen_always_tasks
+        return self._listen_tasks
 
-    @listen_always_tasks.setter
-    def listen_always_tasks(self, newValue):
+    @listen_tasks.setter
+    def listen_tasks(self, newValue):
 
-        self._listen_always_tasks = newValue
-
-    @property
-    def listen_once_tasks(self):
-
-        return self._listen_once_tasks
-
-    @listen_once_tasks.setter
-    def listen_once_tasks(self, newValue):
-
-        self._listen_once_tasks = newValue
+        self._listen_tasks = newValue
 
     def __kill_proc(self):
         """

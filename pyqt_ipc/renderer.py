@@ -14,11 +14,33 @@ class CallController:
 
     def add(self, callback):
         """
-        添加结果回调函数
+        添加回调函数
         :param callback: 结果回调函数
         :return: None
         """
         self._callbacks.append(callback)
+
+    def remove(self, callback):
+        """
+        移除回调函数
+        :return: bool
+        """
+        if callback not in self._callbacks:
+            return False
+
+        self._callbacks.remove(callback)
+        return True
+
+    def clear(self):
+        """
+        清空回调函数
+        :return: None
+        """
+        self._callbacks.clear()
+
+    def empty(self):
+
+        return not self._callbacks
 
     def __call__(self, *args, **kwargs):
         """
@@ -40,47 +62,50 @@ class IPCRenderer:
 
     def on(self, task_name, callback):
         """
-        添加任务监听
+        添加任务回调
         :param task_name: 任务名称
         :param callback: 结果回调函数
         :return: None
         """
-        if task_name in self._ipcMain.listen_always_tasks:
-            self._ipcMain.listen_always_tasks[task_name].add(callback)
+        if task_name in self._ipcMain.listen_tasks:
+            self._ipcMain.listen_tasks[task_name].add(callback)
         else:
-            new_always_tasks = self._ipcMain.listen_always_tasks
-            new_always_tasks[task_name] = CallController(callback)
-            self._ipcMain.listen_always_tasks = new_always_tasks
-        logger.debug(f"任务名({task_name})成功添加渲染监听")
+            new_listen_tasks = self._ipcMain.listen_tasks
+            new_listen_tasks[task_name] = CallController(callback)
+            self._ipcMain.listen_tasks = new_listen_tasks
+        logger.debug(f"[{task_name}]: 添加任务监听成功")
 
-    def once(self, task_name, callback):
+    def remove(self, task_name, callback):
         """
-        添加单次任务监听
+        移除任务单个回调
         :param task_name: 任务名称
-        :param callback: 结果回调函数
+        :param callback: 回调函数
         :return: None
         """
-        if task_name in self._ipcMain.listen_once_tasks:
-            self._ipcMain.listen_once_tasks[task_name].add(callback)
-        else:
-            new_once_tasks = self._ipcMain.listen_once_tasks
-            new_once_tasks[task_name] = CallController(callback)
-            self._ipcMain.listen_once_tasks = new_once_tasks
-        logger.debug(f"任务名({task_name})成功添加单次渲染监听")
+        if task_name not in self._ipcMain.listen_tasks:
+            logger.warning(f"[{task_name}]: 未添加任务监听, 请添加监听后再移除, 本次移除操作被忽略!")
+            return
+
+        if not self._ipcMain.listen_tasks[task_name].remove(callback):
+            logger.warning(f"[{task_name}]: 该回调未被添加未监听, 请先添加为监听后再移除, 本次移除操作被忽略!")
+            return
+
+        if self._ipcMain.listen_tasks[task_name].empty():
+            new_listen_tasks = self._ipcMain.listen_tasks
+            del new_listen_tasks[task_name]
+            self._ipcMain.listen_tasks = new_listen_tasks
+
+        logger.debug(f"[{task_name}]: 移除任务单个监听成功")
 
     def cancel(self, task_name):
         """
-        取消任务监听
+        清空任务回调
         :param task_name: 任务名称
         :return: None
         """
-        if task_name in self._ipcMain.listen_always_tasks:
-            new_always_tasks = self._ipcMain.listen_always_tasks
-            del new_always_tasks[task_name]
-            self._ipcMain.listen_always_tasks = new_always_tasks
+        if task_name in self._ipcMain.listen_tasks:
+            new_listen_tasks = self._ipcMain.listen_tasks
+            del new_listen_tasks[task_name]
+            self._ipcMain.listen_tasks = new_listen_tasks
 
-        if task_name in self._ipcMain.listen_once_tasks:
-            new_once_tasks = self._ipcMain.listen_once_tasks
-            del new_once_tasks[task_name]
-            self._ipcMain.listen_once_tasks = new_once_tasks
-        logger.debug(f"任务名({task_name})成功取消所有监听")
+        logger.debug(f"[{task_name}]: 清空任务监听成功")
