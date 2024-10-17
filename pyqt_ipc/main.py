@@ -59,8 +59,7 @@ class IPCMain:
         self._task_datasets = {}
         self._proc = None
         self._watch_thread = None
-        self._listen_always_tasks = {}
-        self._listen_once_tasks = {}
+        self._listen_tasks = {}
 
     def registry(self, task_name, task):
         """
@@ -117,13 +116,6 @@ class IPCMain:
             logger.error("流程错误, 任务完成注册并运行后才有停止的可能, 本次停止任务操作被忽略!")
             return
 
-        if task_name in self._listen_always_tasks:
-            del self._listen_always_tasks[task_name]
-
-        if task_name in self._listen_once_tasks:
-            del self._listen_once_tasks[task_name]
-        logger.debug(f"[{task_name}]: 已成功取消所有监听")
-
         task_q.put(("stop", task_name))
         logger.debug(f"[{task_name}]: 下发取消任务成功")
 
@@ -166,11 +158,8 @@ class IPCMain:
         :return: None
         """
         task_name = result[0]
-        if task_name in self._listen_always_tasks:
-            self._listen_always_tasks[task_name](*result[1:])
-
-        if task_name in self._listen_once_tasks:
-            self._listen_once_tasks[task_name](*result[1:])
+        if task_name in self._listen_tasks:
+            self._listen_tasks[task_name](*result[1:])
 
         if task_name in self._task_datasets:
             self._callback_subsequent(task_name)
@@ -200,7 +189,7 @@ class IPCMain:
 
     def _callback_subsequent(self, task_name):
         """
-        任务回调渲染的后续操作, 包括记录日志和取消结束任务的渲染监听
+        任务回调渲染的后续操作, 包括记录日志
         :param task_name: 任务名称
         :return: None
         """
@@ -214,50 +203,18 @@ class IPCMain:
                 logger.debug(f"[{task_name}]: 第 {already_cycle} 次任务结束")
             else:
                 logger.info(f"[{task_name}]: 对应任务已全部结束")
-                self._cancel_listen(task_name)
         else:
             logger.info(f"[{task_name}]: 任务已经结束")
-            self._cancel_listen(task_name)
-
-    def _cancel_listen(self, task_name):
-        """
-        任务结束后, 去除对应的渲染监听
-        :param task_name: 任务名称
-        :return: None
-        """
-        has_delete = False
-        if task_name in self._listen_once_tasks:
-            has_delete = True
-            del self._listen_once_tasks[task_name]
-            logger.debug(f"[{task_name}]: 单次监听已去除")
-
-        if task_name in self._listen_always_tasks:
-            has_delete = True
-            del self._listen_always_tasks[task_name]
-            logger.debug(f"[{task_name}]: 无限监听已去除")
-
-        if has_delete:
-            logger.info(f"[{task_name}]: 所有监听已去除")
 
     @property
-    def listen_always_tasks(self):
+    def listen_tasks(self):
 
-        return self._listen_always_tasks
+        return self._listen_tasks
 
-    @listen_always_tasks.setter
-    def listen_always_tasks(self, newValue):
+    @listen_tasks.setter
+    def listen_tasks(self, newValue):
 
-        self._listen_always_tasks = newValue
-
-    @property
-    def listen_once_tasks(self):
-
-        return self._listen_once_tasks
-
-    @listen_once_tasks.setter
-    def listen_once_tasks(self, newValue):
-
-        self._listen_once_tasks = newValue
+        self._listen_tasks = newValue
 
     def __kill_proc(self):
         """

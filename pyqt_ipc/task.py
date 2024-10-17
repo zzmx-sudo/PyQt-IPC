@@ -201,8 +201,11 @@ class TaskManager:
         :param task_name: 任务名称
         :return: None
         """
+        if not self._all_tasks[task_name].isRuning:
+            logger.warning(f"[{task_name}]: 任务未启动或已结束, 本次取消忽略!")
+            return
         self._all_tasks[task_name].quit()
-        logger.debug(f"[{task_name}]: 任务已成功取消")
+        logger.debug(f"[{task_name}]: 若是循环任务, 后续执行已被取消; 当前拉起的执行无法取消, 若无需监听请将监听移除")
 
     def _stop_all(self):
         """

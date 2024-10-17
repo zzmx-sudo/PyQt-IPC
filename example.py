@@ -22,9 +22,9 @@ class Example(QMainWindow):
         self.btn.resize(self.btn.sizeHint())
         self.btn.move(10, 10)
         if self._forever:
-            self.btn.clicked.connect(lambda :self._read_file_forever())
+            self.btn.clicked.connect(lambda :self._start_read_file_forever())
         else:
-            self.btn.clicked.connect(lambda :self._read_file_once())
+            self.btn.clicked.connect(lambda :self._start_read_file_once())
 
         self.btn2 = QPushButton("取消文本展示", self)
         self.btn2.resize(self.btn.sizeHint())
@@ -38,17 +38,34 @@ class Example(QMainWindow):
         self.textBox.resize(380, 350)
         self.textBox.move(10, 40)
 
+        self._init_async_tasks_and_listen()
+
         self.show()
 
-    def _read_file_forever(self):
+    def _init_async_tasks_and_listen(self):
+        """
+        初始化异步任务并添加监听
+        :return: None
+        """
         self.ipcMain.registry("read_file_forever", TaskIterator(self._read_file))
         self.ipcReanderer.on("read_file_forever", self.textBox.append)
+
+        self.ipcMain.registry("read_file_once", self._read_file)
+        self.ipcReanderer.on("read_file_once", self.textBox.setText)
+
+    def _start_read_file_forever(self):
         self.ipcMain.start("read_file_forever", "./demo.txt")
 
-    def _read_file_once(self):
-        self.ipcMain.registry("read_file_once", self._read_file)
-        self.ipcReanderer.once("read_file_once", self.textBox.setText)
+    def _start_read_file_once(self):
         self.ipcMain.start("read_file_once", "./demo.txt")
+
+    def _remove_listen(self):
+        self.ipcReanderer.remove("read_file_forever", self.textBox.append)
+        self.ipcReanderer.remove("read_file_once", self.textBox.setText)
+
+    def _cancel_listen(self):
+        self.ipcReanderer.cancel("read_file_forever")
+        self.ipcReanderer.cancel("read_file_once")
 
     @staticmethod
     def _read_file(file_path):
